@@ -1,0 +1,126 @@
+SELECT *
+ FROM `server-181713.housingMarketData.tablehousing` LIMIT 20
+
+/* Cleaning Data in SQL Queries */
+---------------------------------------------------------------------------------------------------
+--  Standardize Date Format 
+
+SELECT SaleDate, CONVERT(Date,SaleDate)
+ FROM `server-181713.housingMarketData.tablehousing` 
+
+ALTER TABLE `server-181713.housingMarketData.tablehousing`
+add SaleDateConverted = CONVERT(Date,SaleDate)
+
+Update `server-181713.housingMarketData.tablehousing` 
+Set SaleDate = SaleDateConverted
+
+---------------------------------------------------------------------------------------------------
+
+-- Populate Property Address data 
+
+SELECT *
+ FROM `server-181713.housingMarketData.tablehousing` 
+ --Where PropertyAddress is null
+ --order by ParcelID
+
+SELECT a.PropertyAddress, b.PropertyAddress, a.ParcelID, a.UniqueID, b.ParcelID, b.UniqueID, IFNULL(a.PropertyAddress,b.PropertyAddress) As NewPropertyAddress
+ FROM `server-181713.housingMarketData.tablehousing` a
+ join `server-181713.housingMarketData.tablehousing` b 
+ on a.ParcelID = b.ParcelID and a.UniqueID <> b.UniqueID
+Where a.PropertyAddress is null
+
+Update  `server-181713.housingMarketData.tablehousing` a
+Set PropertyAddress = IFNULL(a.PropertyAddress,b.PropertyAddress)
+FROM `server-181713.housingMarketData.tablehousing` a
+ join `server-181713.housingMarketData.tablehousing` b 
+ on a.ParcelID = b.ParcelID and a.UniqueID <> b.UniqueID
+Where a.PropertyAddress is null
+
+
+--------------------------------------------------------------------------------------------------
+-- Breaking out Adress into Individual Columns (Adress, City, State)
+
+ALTER TABLE `server-181713.housingMarketData.tablehousing`
+add PropertysliptAdress STRING(255)
+
+Update `server-181713.housingMarketData.tablehousing` 
+Set PropertysliptAdress = SUBSTR(PropertyAddress, 1, STRPOS(PropertyAddress, ',') - 1 )
+
+ALTER TABLE `server-181713.housingMarketData.tablehousing`
+add PropertysliptCity STRING(255)
+
+Update `server-181713.housingMarketData.tablehousing` 
+Set PropertysliptCity = SUBSTR(PropertyAddress, STRPOS(PropertyAddress, ',' ) + 1 , LENGTH(PropertyAddress))
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+ALTER TABLE `server-181713.housingMarketData.tablehousing`
+add OwnersliptAdress STRING(255)
+
+Update `server-181713.housingMarketData.tablehousing` 
+Set OwnersliptAdress = Parsename(Replace(OwnerAdress, ',', '.'),3)
+
+ALTER TABLE `server-181713.housingMarketData.tablehousing`
+add OwnersliptCity STRING(255)
+
+Update `server-181713.housingMarketData.tablehousing` 
+Set OwnersliptCity = Parsename(Replace(OwnerAdress, ',', '.'),2)
+
+ALTER TABLE `server-181713.housingMarketData.tablehousing`
+add OwnersliptState STRING(255)
+
+Update `server-181713.housingMarketData.tablehousing` 
+Set OwnersliptState = Parsename(Replace(OwnerAdress, ',', '.'),1)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+--Change Y and N to Yes and No in "sold as Vacant" field
+
+SELECT Distinct(SoldAsVacant), Count(SoldAsVacant)
+ FROM `server-181713.housingMarketData.tablehousing`
+ Group by SoldAsVacant
+ order by Count(SoldAsVacant)
+
+    
+
+ 
+
+Update `server-181713.housingMarketData.tablehousing` 
+Set SoldAsVacant = Case when SoldAsVacant = 'Y' then 'Yes' when SoldAsVacant = 'N' then 'No' else SoldAsVacant
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+--Remove Duplicates
+
+WITH RowNumCTE AS(
+SELECT *, 
+ROW_NUMBER()OVer(Partition by ParcelID, PropertyAddress,  SaleDate,   SalePrice, LegalReference Order by UniqueID ) row_num
+ FROM `server-181713.housingMarketData.tablehousing` 
+)
+
+DELETE FROM RowNumCTE
+where row_num > 1
+
+
+--Verification if the duplicates are deleted
+
+WITH RowNumCTE AS(
+SELECT *, 
+ROW_NUMBER()OVer(Partition by ParcelID, PropertyAddress,  SaleDate,   SalePrice, LegalReference Order by UniqueID ) row_num
+ FROM `server-181713.housingMarketData.tablehousing` 
+)
+
+SELECT * FROM RowNumCTE
+where row_num > 1
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+--Delete Unused Columns
+
+Select *
+ FROM `server-181713.housingMarketData.tablehousing`
+
+
+ALTER TABLE `server-181713.housingMarketData.tablehousing`
+DROP COLUMN OwnerAdress, TaxDistrict, PropertyAdress, SaleDate
